@@ -1,0 +1,10 @@
+[package]
+name = "bezier_utils"
+version = "0.1.0"
+authors = ["nkornelsen <69067104+nkornelsen@users.noreply.github.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+nalgebra = "0.26.2"

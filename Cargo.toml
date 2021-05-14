@@ -1,0 +1,33 @@
+[package]
+name = "vector-to-mesh-uv"
+version = "0.1.0"
+authors = ["nkornelsen <69067104+nkornelsen@users.noreply.github.com>"]
+edition = "2018"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+text_io = "0.1.8"
+regex = "1.5.3"
+nalgebra = "0.26.2"
+bezier_utils = { path = "src/bezier_utils"}
+png = "0.16.8"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+threadpool = "1.8.1"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2.74"
+js-sys = "0.3.51"
+console_error_panic_hook = { version = "0.1.6", optional = true}
+
+[target.'cfg(target_arch = "wasm32")'.dependencies.web-sys]
+version = "0.3.51"
+features = ["console"]
+
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+wasm-bindgen-test = "0.3.13"
