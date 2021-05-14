@@ -259,6 +259,7 @@ pub fn generate_images_internal(
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 pub fn generate_images_internal_multithreaded(
     mesh_data: String,
     output_type: DataOutputType,
