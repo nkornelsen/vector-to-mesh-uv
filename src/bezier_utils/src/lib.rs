@@ -1,9 +1,9 @@
 use std::collections::LinkedList;
 
-type BezierNum = f64;
+pub type BezierNum = f64;
 type Vector<T> = nalgebra::Vector3<T>;
 
-const ZERO_TOLERANCE: BezierNum = 0.00000000001;
+const ZERO_TOLERANCE: BezierNum = 0.000000000001;
 const PRINT_DEBUG: bool = false;
 
 fn print_polynomials(a: &Vec<Vec<BezierNum>>, n: usize) {
@@ -123,7 +123,7 @@ fn locate_root_intervals(a: BezierNum, b: BezierNum, coefficients: &Vec<Vec<Bezi
     }
 }
 
-fn compute_root_on_interval(int: (BezierNum, BezierNum), coefficients: &Vec<f64>, degree: usize) -> f64 {
+fn compute_root_on_interval(int: (BezierNum, BezierNum), coefficients: &Vec<BezierNum>, degree: usize) -> BezierNum {
     let tolerance = 0.0000001;
     let int = (int.0, int.1);
     // println!("Coefficients: {:?}", coefficients);
@@ -156,15 +156,15 @@ fn compute_root_on_interval(int: (BezierNum, BezierNum), coefficients: &Vec<f64>
     r
 }
 
-fn roots_from_intervals(intervals: Vec<(BezierNum, BezierNum)>, coefficients: &Vec<f64>, degree: usize) -> Vec<f64> {
+fn roots_from_intervals(intervals: Vec<(BezierNum, BezierNum)>, coefficients: &Vec<BezierNum>, degree: usize) -> Vec<BezierNum> {
     intervals.iter().map(|i| {
         compute_root_on_interval(*i, coefficients, degree)
     }).collect()
 }
 
-fn choose_best_root(roots: &Vec<f64>, point: Vector<BezierNum>, points: &Vec<Vector<BezierNum>>) -> (f64, f64) {
+fn choose_best_root(roots: &Vec<BezierNum>, point: Vector<BezierNum>, points: &Vec<Vector<BezierNum>>) -> (BezierNum, BezierNum) {
     // let point = (point[0], point[1]);
-    let dist_sq = |r: f64| {
+    let dist_sq = |r: BezierNum| {
         let p = point_location(r, points);
         (p - point).magnitude_squared()
     };
@@ -179,13 +179,13 @@ fn choose_best_root(roots: &Vec<f64>, point: Vector<BezierNum>, points: &Vec<Vec
     (best.0, best.1.sqrt())
 }
 
-pub fn point_location(t: f64, points: &Vec<Vector<BezierNum>>) -> Vector<BezierNum> {
+pub fn point_location(t: BezierNum, points: &Vec<Vector<BezierNum>>) -> Vector<BezierNum> {
     // let points: Vec<(f64, f64)> = points.iter().map(|x| (x[0], x[1])).collect();
 
     (1.0-t).powi(3)*points[0] + 3.0*(1.0-t).powi(2)*t*points[1] + 3.0*(1.0-t)*t.powi(2)*points[2] + t.powi(3)*points[3]
 }
 
-pub fn point_derivative(t: f64, points: &Vec<Vector<BezierNum>>) -> Vector<BezierNum> {
+pub fn point_derivative(t: BezierNum, points: &Vec<Vector<BezierNum>>) -> Vector<BezierNum> {
     3.0*(1.0-t).powi(2)*(points[1]-points[0]) + 6.0*(1.0-t)*t*(points[2]-points[1]) + 3.0*t.powi(2)*(points[3]-points[2])
 }
 
@@ -221,7 +221,7 @@ pub fn distance_to_curve(p: Vector<BezierNum>, points: &Vec<Vector<BezierNum>>) 
     
     for j in 0..n+1 {
         a[j][0] = b[j];
-        a[j][1] = a[j][0] * (n - j) as f64;
+        a[j][1] = a[j][0] * (n - j) as BezierNum;
     }
     t[2] = a[0][0] / a[0][1];
     m[2] = (a[1][0] - t[2] * a[1][1]) / a[0][1];

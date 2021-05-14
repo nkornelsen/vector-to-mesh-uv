@@ -1,166 +1,115 @@
-mod lib;
-
-#[cfg(not(target_arch = "wasm32"))]
-use std::fs;
-#[cfg(not(target_arch = "wasm32"))]
-use std::io::BufWriter;
-#[cfg(not(target_arch = "wasm32"))]
-use std::path::Path;
-#[cfg(not(target_arch = "wasm32"))]
+use vector_to_mesh_uv::*;
 use std::fs::File;
-use text_io::scan;
-use regex::Regex;
-use lib::*;
-use std::sync::{Arc, Mutex};
+use std::path::Path;
+use std::io::{Read, Write};
+use clap::{Arg, App, SubCommand};
 
 fn main() {
-  let filename = "vertex_uvs";
+    let matches = App::new("vector-to-mesh-uv")
+        .arg(Arg::with_name("input")
+            .short("i")
+            .long("input")
+            .value_name("INPUT")
+            .help("The input mesh data")
+            .takes_value(true))
+        .arg(Arg::with_name("main_out")
+            .short("o")
+            .long("main_out")
+            .value_name("MAIN_OUT")
+            .help("Output file for main png")
+            .takes_value(true))
+        .arg(Arg::with_name("aux_out")
+            .short("aux")
+            .long("aux_out")
+            .value_name("AUXILIARY_OUT")
+            .help("Output file for secondary png")
+            .takes_value(true))
+        .arg(Arg::with_name("output_type")
+            .short("t")
+            .long("output_type")
+            .value_name("OUTPUT_TYPE")
+            .help("Type of output to generate")
+            .takes_value(true))
+        .arg(Arg::with_name("width")
+            .short("w")
+            .long("width")
+            .value_name("WIDTH")
+            .help("Width of output")
+            .takes_value(true))
+        .arg(Arg::with_name("height")
+            .short("h")
+            .long("height")
+            .value_name("HEIGHT")
+            .help("Height of output")
+            .takes_value(true))
+        .arg(Arg::with_name("multithreaded")
+            .short("mt")
+            .long("multithread")
+            .value_name("MULTITHREADING")
+            .help("Use multiple threads")
+            .takes_value(true))
+        .arg(Arg::with_name("workers")
+            .short("n")
+            .long("workers")
+            .value_name("WORKERS")
+            .help("Number of workers (if multithreading)")
+            .takes_value(true)
+    ).get_matches();
 
-  let contents = fs::read_to_string(filename).expect("Failed to read file");
-  let lines: Vec<&str> = contents.split("\n").collect();
+//     let (main, aux) = generate_images_internal_multithreaded(String::from("4
+// -1 -1 1
+// 1 -1 1
+// -1 1 1
+// 1 1 1
+// 2
+// 1 (0, 1) 2 (1, 0) 0 (1, 1) 
+// 1 (0, 1) 3 (0, 0) 2 (1, 0) 
+// 1
+// ((-1.1589628458023071, -1.6762653589248657, 1), (-0.6589628458023071, -1.1762653589248657, 1), (2.4685609340667725, 1.3283957242965698, 1)) ((-3.308171272277832, 1.3792165517807007, 1), (1.7162351608276367, -1.2275062799453735, 1), (2.963348150253296, 0.1608094573020935, 1))
+// "), DataOutputType::BEZIER, 512, 255, 10);
 
-  let vertex_count: usize = lines[0].trim().parse().unwrap();
-  let polygon_count: usize = lines[vertex_count+1].trim().parse().unwrap();
-  let spline_count: usize = lines[vertex_count+polygon_count+2].trim().parse().unwrap();
+//     let main_path = Path::new("./main_image.png");
+//     let mut main_file = File::create(main_path).unwrap();
+//     main_file.write(&main).unwrap();
 
-  println!("{} vertices, {} polygons, {} splines", vertex_count, polygon_count, spline_count);
+//     if let Some(aux) = aux {
+//         let aux_path = Path::new("./aux_image.png");
+//         let mut aux_file = File::create(aux_path).unwrap();
+//         aux_file.write(&aux).unwrap();
+//     }
+    let mut input_file = File::open(matches.value_of("input").unwrap()).unwrap();
+    let mut input_data = String::new();
+    input_file.read_to_string(&mut input_data).unwrap();
 
-  let mut vertices: Vec<Vector> = Vec::new();
-  let mut polygons: Vec<Vec<(usize, Vector2)>> = Vec::new();
-  let mut splines: Vec<Vec<(Vector, Vector, Vector)>> = Vec::new();
-  let mut spline_lengths: Vec<Vec<f64>> = Vec::new();
+    let width: u32 = matches.value_of("width").unwrap_or("255").parse().unwrap();
+    let height: u32 = matches.value_of("height").unwrap_or("255").parse().unwrap();
 
-  for i in 0..vertex_count {
-      let (x, y, z): (f64, f64, f64);
-      scan!(lines[i+1].bytes() => "{} {} {}", x, y, z);
-      vertices.push(Vector::new(x, y, z));
-  }
+    let multithreaded: bool = matches.value_of("multithreaded").unwrap_or("true").parse().unwrap();
+    let workers: usize = matches.value_of("workers").unwrap_or("4").parse().unwrap();
 
-  let loop_regex = Regex::new(r"(\d+) \((-?[\d]\.?[\d]+),\s*(-?[\d]\.?[\d]+)\)").unwrap();
-  for i in 0..polygon_count {
-      let mut poly = Vec::new();
-      for capture in loop_regex.captures_iter(lines[i+2+vertex_count]) {
-          let vertex_idx = capture[1].parse::<usize>().unwrap();
-          let (uv_x, uv_y) = (capture[2].parse::<f64>().unwrap(), capture[3].parse::<f64>().unwrap());
-          poly.push((vertex_idx, Vector2::new(uv_x, uv_y)));
-      }
-      polygons.push(poly);
-  }
+    let output_type = matches.value_of("output_type").unwrap_or("bezier");
+    let output = match output_type {
+        "bezier" => DataOutputType::BEZIER,
+        "distance" => DataOutputType::DISTANCE,
+        "coords" => DataOutputType::COORDS,
+        "length" => DataOutputType::LENGTH,
+        _ => DataOutputType::BEZIER,
+    };
 
-  let spline_regex = Regex::new(r"\(\((-?[\d]+\.?[\d]+),\s*(-?[\d]+\.?[\d]+),\s*(-?[\d]+\.?[\d]+)\),\s+\((-?[\d]+\.?[\d]+),\s*(-?[\d]+\.?[\d]+),\s*(-?[\d]+\.?[\d]+)\),\s+\((-?[\d]+\.?[\d]+),\s*(-?[\d]+\.?[\d]+),\s*(-?[\d]+\.?[\d]+)\)\)").unwrap();
-  for i in 0..spline_count {
-      let mut spline = Vec::new();
-      for capture in spline_regex.captures_iter(lines[i+3+vertex_count+polygon_count]) {
-          let (p1, p2, p3) = 
-              (Vector::new(capture[1].parse::<f64>().unwrap(), capture[2].parse::<f64>().unwrap(), capture[3].parse::<f64>().unwrap()), 
-              Vector::new(capture[4].parse::<f64>().unwrap(), capture[5].parse::<f64>().unwrap(), capture[6].parse::<f64>().unwrap()), 
-              Vector::new(capture[7].parse::<f64>().unwrap(), capture[8].parse::<f64>().unwrap(), capture[9].parse::<f64>().unwrap()));
-          spline.push((p1, p2, p3));
-      }
-      splines.push(spline);
-  }
+    let (main, aux) = if multithreaded {
+        generate_images_internal_multithreaded(input_data, output, width, height, workers)
+    } else {
+        generate_images_internal(input_data, output, width, height)
+    };
 
-  for i in 0..splines.len() {
-      let mut spline_length = Vec::new();
-      let spline = &splines[i];
-      spline_length.push(0.0);
-      if spline.len() > 1 {
-          for j in 1..spline.len() {
-              let pts = vec![spline[j-1].1, spline[j-1].2, spline[j].0, spline[j].1];
-              spline_length.push(spline_length[j-1] + bezier_test::bezier_distance(0., 1., &pts));
-          }
-      }
-      spline_lengths.push(spline_length);
-  }
+    let main_path = Path::new(matches.value_of("main_out").unwrap_or("./main_image.png"));
+    let mut main_file = File::create(main_path).unwrap();
+    main_file.write(&main).unwrap();
 
-  println!("{:?}", spline_lengths);
+    if let Some(aux) = aux {
+        let aux_path = Path::new(matches.value_of("aux_out").unwrap_or("./aux_image.png"));
+        let mut aux_file = File::create(aux_path).unwrap();
+        aux_file.write(&aux).unwrap();
+    }
 
-  // println!("{:?}", vertices);
-  // println!("{:?}", polygons);
-  // println!("{:?}", splines);
-
-  // closest_quadratic_bezier_t_2d((-0.088, 0.845), vec![(0.226, 1.03), (0.5, 0.392), (0.34, 1.112)]);
-
-  let (im_width, im_height) = (256, 256);
-
-  let main_data = Arc::new(Mutex::new(vec![vec![vec![0_u16; 3]; im_width as usize]; im_height as usize]));
-
-  let aux_data = Arc::new(Mutex::new(vec![vec![vec![0_f64; 3]; im_width as usize]; im_height as usize]));
-
-  let mut test_tri = Vec::new();
-  test_tri.push((0.3, 0.3));
-  test_tri.push((0.3, 0.7));
-  test_tri.push((0.6, 0.4));
-
-  const STEP: usize = 1;
-  let output = DataOutputType::LENGTH;
-
-  let total_values = im_height * im_width;
-  let completed_values = Arc::new(Mutex::new(0));
-  let n_workers = 10;
-
-  let pool = threadpool::ThreadPool::new(n_workers);
-
-  let vertices = Arc::new(vertices);
-  let polygons = Arc::new(polygons);
-  let splines = Arc::new(splines);
-  let spline_lengths = Arc::new(spline_lengths);
-  let x_y_z_max = Arc::new(Mutex::new(0.0));
-  
-  for i in (0..im_height).step_by(STEP) {
-      for j in (0..im_width).step_by(STEP) {
-          // if tri_contains_point(&test_tri, (j as f32 / im_width as f32, i as f32 / im_height as f32)) {
-          //     data[i as usize][j as usize] = [255, 255, 255].to_vec();
-          // }
-          let (vertices, polygons, splines, spline_lengths) = (vertices.clone(), polygons.clone(), splines.clone(), spline_lengths.clone());
-          let x_y_z_max = x_y_z_max.clone();
-          let (data, aux_data) = (main_data.clone(), aux_data.clone());
-          let completed_values = completed_values.clone();
-          pool.execute(move || {
-              calculate_value_at_idx(i, j, &vertices, &polygons, &splines, &spline_lengths, x_y_z_max, im_width, im_height, data, aux_data, completed_values, STEP, output, total_values);
-          });
-      }
-  }
-
-  pool.join();
-
-  extend_data(main_data.clone());
-  extend_data(main_data.clone());
-
-  #[cfg(not(target_arch = "wasm32"))]
-  {
-      let main_path = Path::new(r"./main_image.png");
-      let main_file = File::create(main_path).unwrap();
-      let ref mut main_w = BufWriter::new(main_file);
-
-      let mut main_encoder = png::Encoder::new(main_w, im_width, im_height);
-      main_encoder.set_color(png::ColorType::RGB);
-      main_encoder.set_depth(png::BitDepth::Sixteen);
-      let mut main_writer = main_encoder.write_header().unwrap();
-
-      main_writer.write_image_data(&u16_vec_to_u8_vec(&flatten(flatten(Arc::try_unwrap(main_data).unwrap().into_inner().unwrap())))).unwrap();
-      if output == DataOutputType::LENGTH {
-          let aux_path = Path::new(r"./aux_image.png");
-          let aux_file = File::create(aux_path).unwrap();
-          let ref mut aux_w = BufWriter::new(aux_file);
-
-          extend_data_f64(aux_data.clone());
-          extend_data_f64(aux_data.clone());
-          let mut aux_data = Arc::try_unwrap(aux_data).unwrap().into_inner().unwrap();
-          for row in aux_data.iter_mut() {
-              for px in row.iter_mut() {
-                  for val in px.iter_mut() {
-                      *val = 32768.0 * ((*val / *x_y_z_max.lock().unwrap()) + 1.0);
-                  }
-              }
-          }
-          
-          let mut aux_encoder = png::Encoder::new(aux_w, im_width, im_height);
-          aux_encoder.set_color(png::ColorType::RGB);
-          aux_encoder.set_depth(png::BitDepth::Sixteen);
-          let mut aux_writer = aux_encoder.write_header().unwrap();
-
-          aux_writer.write_image_data(&u16_vec_to_u8_vec(&flatten(flatten(aux_data).into_iter().map(|x| vec![x[0] as u16, x[1] as u16, x[2] as u16]).collect()))).unwrap();
-      }
-  }
 }

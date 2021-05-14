@@ -1,10 +1,11 @@
+use bezier_utils::BezierNum;
 
-  type Vector2 = nalgebra::Vector2<f64>;
+  type Vector2 = nalgebra::Vector2<BezierNum>;
 
   struct Line {
-    slope: f64,
-    y_int: f64,
-    x: f64,
+    slope: BezierNum,
+    y_int: BezierNum,
+    x: BezierNum,
     vertical: bool
   }
 
@@ -14,9 +15,9 @@
       if p1[0] == p2[0] {
         vertical = true;
       }
-      let mut slope = 0_f64;
-      let mut x = 0_f64;
-      let mut y_int = 0_f64;
+      let mut slope = 0.;
+      let mut x = 0.;
+      let mut y_int = 0.;
       if !vertical {
         slope = (p2[1] - p1[1]) / (p2[0] - p1[0]);
         y_int = p1[1] - (slope * p1[0])

@@ -19,6 +19,7 @@ png = "0.16.8"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 threadpool = "1.8.1"
+clap = "2.33.3"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen = "0.2.74"
