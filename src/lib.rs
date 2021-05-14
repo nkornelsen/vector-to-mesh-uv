@@ -341,10 +341,10 @@ pub fn generate_images_internal_multithreaded(
         }
         spline_lengths.push(spline_length);
     }
-    print(format!("{:?}", spline_lengths));
-    print(format!("{:?}", vertices));
-    print(format!("{:?}", polygons));
-    print(format!("{:?}", splines));
+    // print(format!("{:?}", spline_lengths));
+    // print(format!("{:?}", vertices));
+    // print(format!("{:?}", polygons));
+    // print(format!("{:?}", splines));
     // closest_quadratic_bezier_t_2d((-0.088, 0.845), vec![(0.226, 1.03), (0.5, 0.392), (0.34, 1.112)]);
     let main_data = vec![vec![vec![0_u16; 3]; im_width as usize]; im_height as usize];
     let aux_data = vec![vec![vec![0.; 3]; im_width as usize]; im_height as usize];
