@@ -15,3 +15,11 @@ X-values, Y-values, and Z-values for the data are respectively stored in the R, 
 A WebAssembly version has been compiled and can be tested at [nkornelsen.github.io](https://nkornelsen.github.io "nkornelsen.github.io") along with some sample data. For faster computation using multithreading, a command line version exists. 
 
 ## Examples
+### 2D Square and Curve
+![2D Square and Curve](examples/Simple_Square.png)
+### Curved Mesh
+![Curved Mesh](examples/Curved_Mesh.png)
+#### Curved Mesh Without `vector-to-mesh-uv`
+![Curved Mesh Without vector-to-mesh-uv](examples/Curved_Mesh_Without_Data.png)
+#### Curved Mesh With `vector-to-mesh-uv`
+![Curved Mesh With vector-to-mesh-uv](examples/Curved_Mesh_Sample_Material.png)
