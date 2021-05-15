@@ -401,8 +401,9 @@ pub fn generate_images_internal_multithreaded(
         }
     }
     thread_pool.join();
-    extend_data(&mut main_data.lock().unwrap(), &mut write_mask.lock().unwrap());
-    extend_data(&mut main_data.lock().unwrap(), &mut write_mask.lock().unwrap());
+    let mut write_mask_main: Vec<Vec<bool>> = write_mask.lock().unwrap().clone();
+    extend_data(&mut main_data.lock().unwrap(), &mut write_mask_main);
+    extend_data(&mut main_data.lock().unwrap(), &mut write_mask_main);
     {
         let mut main_image_data = Vec::new();
 
@@ -420,8 +421,10 @@ pub fn generate_images_internal_multithreaded(
 
         let aux_output = if output == DataOutputType::LENGTH {
             let mut aux_image_data = Vec::new();
-            extend_data_BezierNum(&mut aux_data.lock().unwrap(), &mut write_mask.lock().unwrap());
-            extend_data_BezierNum(&mut aux_data.lock().unwrap(), &mut write_mask.lock().unwrap());
+            let mut write_mask_aux: Vec<Vec<bool>> = write_mask.lock().unwrap().clone();
+            // extend_data_BezierNum(&mut aux_data.lock().unwrap(), &mut write_mask_aux);
+            extend_data_BezierNum(&mut aux_data.lock().unwrap(), &mut write_mask_aux);
+            extend_data_BezierNum(&mut aux_data.lock().unwrap(), &mut write_mask_aux);
             let mut aux_data: Vec<Vec<Vec<BezierNum>>> = Arc::try_unwrap(aux_data).unwrap().into_inner().unwrap();
             let x_y_z_max = *Arc::try_unwrap(x_y_z_max).unwrap().lock().unwrap();
             for row in aux_data.iter_mut() {
@@ -466,6 +469,7 @@ pub fn u16_vec_to_u8_vec(data: &Vec<u16>) -> Vec<u8> {
 
 pub fn extend_data(data: &mut Vec<Vec<Vec<u16>>>, write_mask: &mut Vec<Vec<bool>>) {
     let mut overlay_data = vec![vec![vec![0_u16; 3]; data[0].len()]; data.len()];
+    let mut overlay_mask = vec![vec![false; data[0].len()]; data.len()];
 
     for i in 0..data.len() as isize {
         for j in 0..data.len() as isize {
@@ -484,14 +488,14 @@ pub fn extend_data(data: &mut Vec<Vec<Vec<u16>>>, write_mask: &mut Vec<Vec<bool>
                 ];
                 for o in offsets.iter() {
                     let (oi, oj) = (i + o.0, j + o.1);
-                    if oi < data.len() as isize && oj < data[0].len() as isize && oi >= 0 && oj > 0
+                    if oi < data.len() as isize && oj < data[0].len() as isize && oi >= 0 && oj >= 0
                     {
                         let (oi, oj) = (oi as usize, oj as usize);
                         if !write_mask[oi][oj] {
                             overlay_data[oi][oj][0] = data[ui][uj][0];
                             overlay_data[oi][oj][1] = data[ui][uj][1];
                             overlay_data[oi][oj][2] = data[ui][uj][2];
-                            write_mask[oi][oj] = true;
+                            overlay_mask[oi][oj] = true;
                         }
                     }
                 }
@@ -504,19 +508,21 @@ pub fn extend_data(data: &mut Vec<Vec<Vec<u16>>>, write_mask: &mut Vec<Vec<bool>
             for k in 0..3 {
                 data[i][j][k] += overlay_data[i][j][k];
             }
+            write_mask[i][j] |= overlay_mask[i][j];
         }
     }
 }
 
-pub fn extend_data_BezierNum(data: &mut Vec<Vec<Vec<BezierNum>>>, write_mask: &Vec<Vec<bool>>) {
+pub fn extend_data_BezierNum(data: &mut Vec<Vec<Vec<BezierNum>>>, write_mask: &mut Vec<Vec<bool>>) {
     let mut overlay_data = vec![vec![vec![0.; 3]; data[0].len()]; data.len()];
+    let mut overlay_mask = vec![vec![false; data[0].len()]; data.len()];
 
     for i in 0..data.len() as isize {
         for j in 0..data.len() as isize {
             let (ui, uj) = (i as usize, j as usize);
             if write_mask[ui][uj] {
                 let offsets = [
-                    (0, 1),
+                    (0 as isize, 1 as isize),
                     (1, 1),
                     (1, 0),
                     (1, -1),
@@ -527,13 +533,14 @@ pub fn extend_data_BezierNum(data: &mut Vec<Vec<Vec<BezierNum>>>, write_mask: &V
                 ];
                 for o in offsets.iter() {
                     let (oi, oj) = (i + o.0, j + o.1);
-                    if oi < data.len() as isize && oj < data[0].len() as isize && oi >= 0 && oj > 0
+                    if oi < data.len() as isize && oj < data[0].len() as isize && oi >= 0 && oj >= 0
                     {
                         let (oi, oj) = (oi as usize, oj as usize);
                         if !write_mask[oi][oj] {
                             overlay_data[oi][oj][0] = data[ui][uj][0];
                             overlay_data[oi][oj][1] = data[ui][uj][1];
                             overlay_data[oi][oj][2] = data[ui][uj][2];
+                            overlay_mask[oi][oj] = true;
                         }
                     }
                 }
@@ -546,6 +553,7 @@ pub fn extend_data_BezierNum(data: &mut Vec<Vec<Vec<BezierNum>>>, write_mask: &V
             for k in 0..3 {
                 data[i][j][k] += overlay_data[i][j][k];
             }
+            write_mask[i][j] |= overlay_mask[i][j];
         }
     }
 }
