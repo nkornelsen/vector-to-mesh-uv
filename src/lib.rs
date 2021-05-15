@@ -176,10 +176,23 @@ pub fn generate_images_internal(
         }
         spline_lengths.push(spline_length);
     }
-    print(format!("{:?}", spline_lengths));
-    print(format!("{:?}", vertices));
-    print(format!("{:?}", polygons));
-    print(format!("{:?}", splines));
+    //store bounding boxes of polygons because it's faster to check rectangles than triangles
+    let mut polygon_bounds = Vec::with_capacity(polygons.len());
+    for poly in &polygons {
+        let x_values: Vec<BezierNum> = poly.iter().map(|v| v.1[0]).collect();
+        let y_values: Vec<BezierNum> = poly.iter().map(|v| v.1[1]).collect();
+
+        let min_x = x_values.iter().fold(f64::INFINITY, |a, &b| a.min(b));
+        let min_y = y_values.iter().fold(f64::INFINITY, |a, &b| a.min(b));
+
+        let max_x = x_values.iter().fold(f64::NEG_INFINITY, |a, &b| a.max(b));
+        let max_y = y_values.iter().fold(f64::NEG_INFINITY, |a, &b| a.max(b));
+        polygon_bounds.push(BoundingBox::new(Vector2::new(min_x, min_y), Vector2::new(max_x, max_y)));
+    }
+    // print(format!("{:?}", spline_lengths));
+    // print(format!("{:?}", vertices));
+    // print(format!("{:?}", polygons));
+    // print(format!("{:?}", splines));
     // closest_quadratic_bezier_t_2d((-0.088, 0.845), vec![(0.226, 1.03), (0.5, 0.392), (0.34, 1.112)]);
     let mut main_data = vec![vec![vec![0_u16; 3]; im_width as usize]; im_height as usize];
     let mut aux_data = vec![vec![vec![0.; 3]; im_width as usize]; im_height as usize];
@@ -210,6 +223,7 @@ pub fn generate_images_internal(
                 j,
                 &vertices,
                 &polygons,
+                &polygon_bounds,
                 &splines,
                 &spline_lengths,
                 &mut x_y_z_max,
@@ -597,6 +611,7 @@ pub fn calculate_value_at_idx(
     j: u32,
     vertices: &Vec<Vector>,
     polygons: &Vec<Vec<(usize, Vector2)>>,
+    polygon_bounds: &Vec<BoundingBox>,
     splines: &Vec<Vec<(Vector, Vector, Vector)>>,
     spline_lengths: &Vec<Vec<BezierNum>>,
     x_y_z_max: &mut BezierNum,
@@ -615,7 +630,7 @@ pub fn calculate_value_at_idx(
             (j as BezierNum + 0.5) / im_width as BezierNum,
             (i as BezierNum + 0.5) / im_height as BezierNum,
         );
-        if tri_contains_point(
+        if polygon_bounds[k].contains(point) && tri_contains_point(
             &vec![polygons[k][0].1, polygons[k][1].1, polygons[k][2].1],
             point,
         ) {
