@@ -34,6 +34,24 @@ use bezier_utils::BezierNum;
 
 pub type Vector = Vector3<BezierNum>;
 pub type Vector2 = nalgebra::Vector2<BezierNum>;
+pub struct BoundingBox {
+    bl: Vector2,
+    tr: Vector2,
+}
+
+impl BoundingBox {
+    pub fn new(bl: Vector2, tr: Vector2) -> BoundingBox {
+        BoundingBox {
+            bl,
+            tr
+        }
+    }
+
+    #[inline]
+    fn contains(&self, p: Vector2) -> bool {
+        self.bl[0] <= p[0] && self.bl[1] <= p[1] && self.tr[0] >= p[0] && self.tr[1] >= p[1]
+    }
+}
 
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
@@ -341,6 +359,20 @@ pub fn generate_images_internal_multithreaded(
         }
         spline_lengths.push(spline_length);
     }
+    //store bounding boxes of polygons because it's faster to check rectangles than triangles
+    let mut polygon_bounds = Vec::with_capacity(polygons.len());
+    for poly in &polygons {
+        let x_values: Vec<BezierNum> = poly.iter().map(|v| v.1[0]).collect();
+        let y_values: Vec<BezierNum> = poly.iter().map(|v| v.1[1]).collect();
+
+        let min_x = x_values.iter().fold(f64::INFINITY, |a, &b| a.min(b));
+        let min_y = y_values.iter().fold(f64::INFINITY, |a, &b| a.min(b));
+
+        let max_x = x_values.iter().fold(f64::NEG_INFINITY, |a, &b| a.max(b));
+        let max_y = y_values.iter().fold(f64::NEG_INFINITY, |a, &b| a.max(b));
+        polygon_bounds.push(BoundingBox::new(Vector2::new(min_x, min_y), Vector2::new(max_x, max_y)));
+    }
+
     // print(format!("{:?}", spline_lengths));
     // print(format!("{:?}", vertices));
     // print(format!("{:?}", polygons));
@@ -361,6 +393,7 @@ pub fn generate_images_internal_multithreaded(
     print(format!("Ready for processing"));
     let vertices = Arc::new(vertices);
     let polygons = Arc::new(polygons);
+    let polygon_bounds = Arc::new(polygon_bounds);
     let splines = Arc::new(splines);
     let spline_lengths = Arc::new(spline_lengths);
     let x_y_z_max = Arc::new(Mutex::new(0.0));
@@ -376,14 +409,15 @@ pub fn generate_images_internal_multithreaded(
             // if tri_contains_point(&test_tri, (j as f32 / im_width as f32, i as f32 / im_height as f32)) {
             //     data[i as usize][j as usize] = [255, 255, 255].to_vec();
             // }
-            let (vertices, polygons, splines, spline_lengths, x_y_z_max, main_data, aux_data, write_mask, completed_values) = 
-                (vertices.clone(), polygons.clone(), splines.clone(), spline_lengths.clone(), x_y_z_max.clone(), main_data.clone(), aux_data.clone(), write_mask.clone(), completed_values.clone());
+            let (vertices, polygons, polygon_bounds, splines, spline_lengths, x_y_z_max, main_data, aux_data, write_mask, completed_values) = 
+                (vertices.clone(), polygons.clone(), polygon_bounds.clone(), splines.clone(), spline_lengths.clone(), x_y_z_max.clone(), main_data.clone(), aux_data.clone(), write_mask.clone(), completed_values.clone());
             thread_pool.execute(move || {
                 calculate_value_at_idx_multithreaded(
                     i,
                     j,
                     vertices,
                     polygons,
+                    polygon_bounds,
                     splines,
                     spline_lengths,
                     x_y_z_max,
@@ -676,11 +710,16 @@ pub fn calculate_value_at_idx(
     }
 }
 
+impl BoundingBox {
+
+}
+
 pub fn calculate_value_at_idx_multithreaded(
     i: u32,
     j: u32,
     vertices: Arc<Vec<Vector>>,
     polygons: Arc<Vec<Vec<(usize, Vector2)>>>,
+    polygon_bounds: Arc<Vec<BoundingBox>>,
     splines: Arc<Vec<Vec<(Vector, Vector, Vector)>>>,
     spline_lengths: Arc<Vec<Vec<BezierNum>>>,
     x_y_z_max: Arc<Mutex<BezierNum>>,
@@ -699,7 +738,7 @@ pub fn calculate_value_at_idx_multithreaded(
             (j as BezierNum + 0.5) / im_width as BezierNum,
             (i as BezierNum + 0.5) / im_height as BezierNum,
         );
-        if tri_contains_point(
+        if polygon_bounds[k].contains(point) && tri_contains_point(
             &vec![polygons[k][0].1, polygons[k][1].1, polygons[k][2].1],
             point,
         ) {
